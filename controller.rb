@@ -2,10 +2,21 @@
 # ruby controller.rb benchmarkfilename command to run racer
 # e.g.
 # ruby controller.rb benchmark.txt ruby randomracer.rb
+# For more detailed output, you can add "-v" before the benchmark
+# file name.
+
+$:.push File.expand_path(File.dirname(__FILE__) + '/lib')
 
 require 'timeout'
 
-benchmark_file = ARGV.shift
+require 'point2d'
+require 'track'
+
+first_arg = ARGV.shift
+verbose = (first_arg == '-v')
+
+benchmark_file = verbose ? ARGV.shift : first_arg
+
 racer_command = ARGV
 
 tracks = File.open(benchmark_file).read.split("\n\n")
@@ -13,24 +24,17 @@ tracks = File.open(benchmark_file).read.split("\n\n")
 total_score = 0
 
 tracks.map do |input|
-    track = input.lines
-    track.each(&:chomp!)
-
-    target = track.shift.to_i
-    size = track.shift.split.map(&:to_i)
-
-    start_y = track.find_index { |row| row['S'] }
-    start_x = track[start_y].index 'S'
-
-    last_position = position = [start_x, start_y]
-    velocity = [0,0]
-
-    turns = 0
-    error = reached_goal = hit_wall = out_of_bounds = timed_out = false
+    track = Track.new(input)
 
     # Give half a second per turn
     time_per_turn = 0.5
-    time_budget = time_per_turn * target
+    time_budget = time_per_turn * track.target
+
+    last_position = position = track.start
+    velocity = Point2D.new(0, 0)
+
+    turns = 0
+    error = reached_goal = hit_wall = out_of_bounds = timed_out = false
 
     racer = IO.popen(racer_command, 'r+')
 
@@ -51,33 +55,28 @@ tracks.map do |input|
                 timed_out = time_budget <= 0
 
                 if !line[/^\s*[+-]?[01]\s+[+-]?[01]\s*$/]
-                    puts "Invalid move: #{line}"
+                    $stderr.puts "Invalid move: #{line}"
                     error = true
                     break
                 end
 
                 turns += 1
-                $stderr.puts "Racer says: #{line}"
+                puts "Racer says: #{line}" if verbose
 
-                move = line.split.map(&:to_i)
+                move = Point2D.from_string line
 
-                velocity[0] += move[0]
-                velocity[1] += move[1]
+                velocity += move
 
                 last_position = position
-                position = [last_position[0] + velocity[0],
-                            last_position[1] + velocity[1]]
+                position = last_position + velocity
 
-                if position[0] < 0 || position[0] >= size[0] ||
-                   position[1] < 0 || position[1] >= size[1]
+                case track.get position
+                when :out_of_bounds
                     out_of_bounds = true
-                else
-                    case track[position[1]][position[0]]
-                    when '#'
-                        hit_wall = true
-                    when '*'
-                        reached_goal = true
-                    end
+                when :wall
+                    hit_wall = true
+                when :goal
+                    reached_goal = true
                 end
 
                 if timed_out ||
@@ -85,13 +84,13 @@ tracks.map do |input|
                    hit_wall ||
                    reached_goal ||
                    racer.closed? ||
-                   turns >= target
+                   turns >= track.target
                     racer.puts
                     racer.flush
                     break
                 else
-                    racer.puts position.join(' ')
-                    racer.puts velocity.join(' ')
+                    racer.puts position
+                    racer.puts velocity
                     racer.puts time_budget
                     racer.flush
                 end
@@ -104,29 +103,29 @@ tracks.map do |input|
         # wait for it to finish before closing.
         Process.kill('KILL', racer.pid)
     rescue Exception => e
-        puts e.message
-        puts e.backtrace.inspect
+        $stderr.puts e.message
+        $stderr.puts e.backtrace.inspect
         error = true
     end
 
     racer.close
 
-    score = reached_goal ? turns/target.to_f : 2
+    score = reached_goal ? turns/track.target.to_f : 2
     total_score += score
 
     print 'SCORE: %1.5f ' % score
     if reached_goal
-        puts "Racer reached goal at #{position} in #{turns} turns."
+        puts "Racer reached goal at #{position.pretty} in #{turns} turns."
     elsif error
         puts "Racer produced error."
     elsif out_of_bounds
-        puts "Racer went out of bounds at position #{position}."
+        puts "Racer went out of bounds at position #{position.pretty}."
     elsif hit_wall
-        puts "Racer hit a wall at position #{position}."
+        puts "Racer hit a wall at position #{position.pretty}."
     elsif timed_out
         puts "Racer timed out after #{turns} turns."
-    elsif turns >= target
-        puts "Racer did not reach the goal within #{target} turns."
+    elsif turns >= track.target
+        puts "Racer did not reach the goal within #{track.target} turns."
     else
         puts "Racer stopped before reaching goal."
     end
