@@ -26,6 +26,6 @@ class Point2D
     end
 
     def pretty
-        "(#{@x}, #{@y})"
+        "(% d,% d)" % [@x, @y]
     end
 end

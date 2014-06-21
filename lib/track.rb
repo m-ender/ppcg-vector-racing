@@ -1,15 +1,15 @@
 class Track
-    attr_accessor :target, :size, :start, :track
+    attr_accessor :target, :size, :start
 
     def initialize(string)
         @track = string.lines
-        track.each(&:chomp!)
+        @track.each(&:chomp!)
 
-        @target = track.shift.to_i
-        @size = Point2D.from_string track.shift
+        @target = @track.shift.to_i
+        @size = Point2D.from_string @track.shift
 
-        start_y = track.find_index { |row| row['S'] }
-        start_x = track[start_y].index 'S'
+        start_y = @track.find_index { |row| row['S'] }
+        start_x = @track[start_y].index 'S'
 
         @start = Point2D.new(start_x, start_y)
     end

@@ -23,7 +23,24 @@ tracks = File.open(benchmark_file).read.split("\n\n")
 
 total_score = 0
 
+puts
+puts "Running '#{racer_command.join ' '}' against #{benchmark_file}"
+puts
+puts ' No.    Size     Target  Score     Details'
+puts '-'*85
+
+track_num = 0
 tracks.map do |input|
+    track_num += 1
+
+    if verbose
+        puts
+        puts "Starting track no. #{track_num}. Track data:"
+        puts
+        puts input
+        puts
+    end
+
     track = Track.new(input)
 
     # Give half a second per turn
@@ -113,7 +130,12 @@ tracks.map do |input|
     score = reached_goal ? turns/track.target.to_f : 2
     total_score += score
 
-    print 'SCORE: %1.5f ' % score
+    if verbose
+        puts
+        puts 'Result:'
+    end
+
+    print "% 3d   %3d x %-3d   % 5d  %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
     if reached_goal
         puts "Racer reached goal at #{position.pretty} in #{turns} turns."
     elsif error
@@ -131,4 +153,6 @@ tracks.map do |input|
     end
 end
 
-puts 'TOTAL SCORE: %1.5f' % total_score
+puts '-'*85
+puts 'TOTAL SCORE: % 19.5f' % total_score
+puts
