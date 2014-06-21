@@ -32,6 +32,7 @@ tracks.map do |input|
     start_x = track[start_y].index 'S'
 
     last_position = position = [start_x, start_y]
+    velocity = [0,0]
 
     turns = 0
     error = reached_goal = hit_wall = out_of_bounds = timed_out = false
@@ -69,9 +70,6 @@ tracks.map do |input|
 
                 move = line.split.map(&:to_i)
 
-                velocity = [position[0] - last_position[0],
-                            position[1] - last_position[1]]
-
                 velocity[0] += move[0]
                 velocity[1] += move[1]
 
@@ -91,16 +89,21 @@ tracks.map do |input|
                     end
                 end
 
-                break if timed_out ||
-                         out_of_bounds ||
-                         hit_wall ||
-                         reached_goal ||
-                         racer.closed? ||
-                         turns >= target
-
-                racer.puts "Racer says: #{line}"
-                racer.flush
-
+                if timed_out ||
+                   out_of_bounds ||
+                   hit_wall ||
+                   reached_goal ||
+                   racer.closed? ||
+                   turns >= target
+                    racer.puts
+                    racer.flush
+                    break
+                else
+                    racer.puts position.join(' ')
+                    racer.puts velocity.join(' ')
+                    racer.puts time_budget
+                    racer.flush
+                end
             end
         end
     rescue Timeout::Error => e
@@ -108,7 +111,7 @@ tracks.map do |input|
 
         # Kill the process manually, otherwise we might have to
         # wait for it to finish before closing.
-        Process.kill("KILL", racer.pid)
+        Process.kill('KILL', racer.pid)
     rescue Exception => e
         puts e.message
         puts e.backtrace.inspect
@@ -120,7 +123,7 @@ tracks.map do |input|
     score = reached_goal ? turns/target.to_f : 2
     total_score += score
 
-    print "SCORE: %1.5f " % score
+    print 'SCORE: %1.5f ' % score
     if reached_goal
         puts "Racer reached goal at #{position} in #{turns} turns."
     elsif error
@@ -138,4 +141,4 @@ tracks.map do |input|
     end
 end
 
-puts "TOTAL SCORE: %1.5f" % total_score
+puts 'TOTAL SCORE: %1.5f' % total_score
