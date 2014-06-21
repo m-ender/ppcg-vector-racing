@@ -5,15 +5,6 @@
 
 require 'timeout'
 
-# Patch a method into IO for more convenient nonblocking IO.
-# Found at http://stackoverflow.com/a/948077/1633117
-class IO
-  def ready_for_read?
-    result = IO.select([self], nil, nil, 0)
-    result && (result.first.first == self)
-  end
-end
-
 benchmark_file = ARGV.shift
 racer_command = ARGV
 
