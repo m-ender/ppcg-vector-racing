@@ -26,7 +26,7 @@ total_score = 0
 puts
 puts "Running '#{racer_command.join ' '}' against #{benchmark_file}"
 puts
-puts ' No.    Size     Target  Score     Details'
+puts ' No.    Size     Target   Score     Details'
 puts '-'*85
 
 track_num = 0
@@ -135,7 +135,7 @@ tracks.map do |input|
         puts 'Result:'
     end
 
-    print "% 3d   %3d x %-3d   % 5d  %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
+    print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
     if reached_goal
         puts "Racer reached goal at #{position.pretty} in #{turns} turns."
     elsif error
@@ -154,5 +154,5 @@ tracks.map do |input|
 end
 
 puts '-'*85
-puts 'TOTAL SCORE: % 19.5f' % total_score
+puts 'TOTAL SCORE: % 20.5f' % total_score
 puts
