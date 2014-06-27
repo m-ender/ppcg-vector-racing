@@ -13,9 +13,10 @@ require 'point2d'
 require 'track'
 
 first_arg = ARGV.shift
-verbose = (first_arg == '-v')
+verbose = !!first_arg[/^-.*v/]
+silent = !!first_arg[/^-.*s/]
 
-benchmark_file = verbose ? ARGV.shift : first_arg
+benchmark_file = verbose || silent ? ARGV.shift : first_arg
 
 racer_command = ARGV
 
@@ -102,10 +103,14 @@ tracks.map do |input|
                 if reached_goal ||
                    failure != :none ||
                    racer.closed?
-                    racer.puts
-                    racer.flush
+                    if silent
+                        Process.kill('KILL', racer.pid)
+                    else
+                        racer.puts
+                        racer.flush
+                    end
                     break
-                else
+                elsif !silent
                     racer.puts position
                     racer.puts velocity
                     racer.puts time_budget
