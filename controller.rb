@@ -5,18 +5,25 @@
 # For more detailed output, you can add "-v" before the benchmark
 # file name.
 
-$:.push File.expand_path(File.dirname(__FILE__) + '/lib')
-
+require 'optparse'
 require 'timeout'
 
-require 'point2d'
-require 'track'
+require_relative 'lib/point2d'
+require_relative 'lib/track'
 
-first_arg = ARGV.shift
-verbose = !!first_arg[/^-.*v/]
-silent = !!first_arg[/^-.*s/]
+verbose = false
+silent = false
+selected_tracks = nil
+OptionParser.new do |opts|
+    opts.banner = "Usage: #$0 [options] benchmark_file [racer]"
 
-benchmark_file = verbose || silent ? ARGV.shift : first_arg
+    opts.on("-v", "Verbose") { verbose = true }
+    opts.on("-s", "Silent") { silent = true }
+    opts.on("-t TRACKS", "Select tracks") { |t| selected_tracks = eval("[#{t}]").map{|el|el.respond_to?(:to_a) ? el.to_a : el}.flatten }
+end.parse!
+p ARGV
+
+benchmark_file = ARGV.shift
 
 if ARGV.length > 0
     # Pretend we've read this from commands.txt as the only command
@@ -28,6 +35,7 @@ else
 end
 
 tracks = File.open(benchmark_file).read.split("\n\n")
+selected_tracks ||= (1..tracks.size)
 
 results = {}
 
@@ -49,13 +57,12 @@ racers.each do |racer|
         puts ' No.    Size     Target   Score     Details'
         puts '-'*85
 
-        track_num = 0
-        tracks.map do |input|
-            track_num += 1
+        selected_tracks.each do |idx|
+            input = tracks[idx - 1]
 
             if verbose
                 puts
-                puts "Starting track no. #{track_num}. Track data:"
+                puts "Starting track no. #{idx}. Track data:"
                 puts
                 puts input
                 puts
@@ -159,7 +166,7 @@ racers.each do |racer|
                 puts 'Result:'
             end
 
-            print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
+            print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [idx, track.size.x, track.size.y, track.target, score]
             if reached_goal
                 puts "Racer reached goal at #{position.pretty} in #{turns} turns."
             else
