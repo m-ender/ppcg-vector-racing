@@ -18,149 +18,184 @@ silent = !!first_arg[/^-.*s/]
 
 benchmark_file = verbose || silent ? ARGV.shift : first_arg
 
-racer_command = ARGV
+if ARGV.length > 0
+    # Pretend we've read this from commands.txt as the only command
+    racers = [ARGV]
+    racers[0].unshift '1'
+    racers[0].unshift ''
+else
+    racers = File.open('submissions/commands.txt').read.split("\n").map(&:split)
+end
 
 tracks = File.open(benchmark_file).read.split("\n\n")
 
-total_score = 0
+results = {}
 
-puts
-puts "Running '#{racer_command.join ' '}' against #{benchmark_file}"
-puts
-puts ' No.    Size     Target   Score     Details'
-puts '-'*85
+racers.each do |racer|
+    average_score = 0
 
-track_num = 0
-tracks.map do |input|
-    track_num += 1
+    author = racer.shift
+    n_runs = racer.shift.to_i
+    racer_command = racer
 
-    if verbose
-        puts
-        puts "Starting track no. #{track_num}. Track data:"
-        puts
-        puts input
-        puts
-    end
+    puts
+    puts "Racer by #{author}" if author != ''
+    puts "Running '#{racer_command.join ' '}' against #{benchmark_file}"
+    puts
 
-    track = Track.new(input)
+    n_runs.times do
+        total_score = 0
 
-    # Give half a second per turn
-    time_per_turn = 0.5
-    time_budget = time_per_turn * track.target
+        puts ' No.    Size     Target   Score     Details'
+        puts '-'*85
 
-    last_position = position = track.start
-    velocity = Point2D.new(0, 0)
+        track_num = 0
+        tracks.map do |input|
+            track_num += 1
 
-    turns = 0
-    reached_goal = false
-    failure = :none
+            if verbose
+                puts
+                puts "Starting track no. #{track_num}. Track data:"
+                puts
+                puts input
+                puts
+            end
 
-    racer = IO.popen(racer_command, 'r+')
+            track = Track.new(input)
 
-    racer.puts input
-    racer.puts time_budget
-    racer.flush
+            # Give half a second per turn
+            time_per_turn = 0.5
+            time_budget = time_per_turn * track.target
 
-    last_time = Time.now
+            last_position = position = track.start
+            velocity = Point2D.new(0, 0)
 
-    begin
-        Timeout::timeout(2*time_budget) do
-            racer.each do |line|
-                current_time = Time.now
-                extra_time = current_time - last_time - time_per_turn
-                last_time = current_time
+            turns = 0
+            reached_goal = false
+            failure = :none
 
-                time_budget -= extra_time if extra_time > 0
-                failure = :timed_out if time_budget <= 0
+            racer = IO.popen(racer_command, 'r+')
 
-                if !line[/^\s*[+-]?[01]\s+[+-]?[01]\s*$/]
-                    $stderr.puts "Invalid move: #{line}"
-                    failure = :error
-                    break
-                end
+            racer.puts input
+            racer.puts time_budget
+            racer.flush
 
-                turns += 1
-                puts "Racer says: #{line}" if verbose
+            last_time = Time.now
 
-                move = Point2D.from_string line
+            begin
+                Timeout::timeout(2*time_budget) do
+                    racer.each do |line|
+                        current_time = Time.now
+                        extra_time = current_time - last_time - time_per_turn
+                        last_time = current_time
 
-                velocity += move
+                        time_budget -= extra_time if extra_time > 0
+                        failure = :timed_out if time_budget <= 0
 
-                last_position = position
-                position = last_position + velocity
+                        if !line[/^\s*[+-]?[01]\s+[+-]?[01]\s*$/]
+                            $stderr.puts "Invalid move: #{line}"
+                            failure = :error
+                            break
+                        end
 
-                case track.get position
-                when :out_of_bounds
-                    failure = :out_of_bounds
-                when :wall
-                    failure = :hit_wall
-                when :goal
-                    reached_goal = true
-                end
+                        turns += 1
+                        puts "Racer says: #{line}" if verbose
 
-                failure = :exceeded_target if turns >= track.target
+                        move = Point2D.from_string line
 
-                if reached_goal ||
-                   failure != :none ||
-                   racer.closed?
-                    if silent
-                        Process.kill('KILL', racer.pid)
-                    else
-                        racer.puts
-                        racer.flush
+                        velocity += move
+
+                        last_position = position
+                        position = last_position + velocity
+
+                        case track.get position
+                        when :out_of_bounds
+                            failure = :out_of_bounds
+                        when :wall
+                            failure = :hit_wall
+                        when :goal
+                            reached_goal = true
+                        end
+
+                        failure = :exceeded_target if turns >= track.target
+
+                        if reached_goal ||
+                           failure != :none ||
+                           racer.closed?
+                            if silent
+                                Process.kill('KILL', racer.pid)
+                            else
+                                racer.puts
+                                racer.flush
+                            end
+                            break
+                        elsif !silent
+                            racer.puts position
+                            racer.puts velocity
+                            racer.puts time_budget
+                            racer.flush
+                        end
                     end
-                    break
-                elsif !silent
-                    racer.puts position
-                    racer.puts velocity
-                    racer.puts time_budget
-                    racer.flush
+                end
+            rescue Timeout::Error => e
+                failure = :timed_out
+
+                # Kill the process manually, otherwise we might have to
+                # wait for it to finish before closing.
+                Process.kill('KILL', racer.pid)
+            rescue Exception => e
+                $stderr.puts e.message
+                $stderr.puts e.backtrace.inspect
+                failure = :error
+            end
+
+            racer.close
+
+            score = reached_goal ? turns/track.target.to_f : 2
+            total_score += score
+
+            if verbose
+                puts
+                puts 'Result:'
+            end
+
+            print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
+            if reached_goal
+                puts "Racer reached goal at #{position.pretty} in #{turns} turns."
+            else
+                case failure
+                when :error
+                    puts "Racer produced error."
+                when :out_of_bounds
+                    puts "Racer went out of bounds at position #{position.pretty}."
+                when :hit_wall
+                    puts "Racer hit a wall at position #{position.pretty}."
+                when :timed_out
+                    puts "Racer timed out after #{turns} turns."
+                when :exceeded_target
+                    puts "Racer did not reach the goal within #{track.target} turns."
+                else
+                    puts "Racer stopped before reaching goal."
                 end
             end
         end
-    rescue Timeout::Error => e
-        failure = :timed_out
 
-        # Kill the process manually, otherwise we might have to
-        # wait for it to finish before closing.
-        Process.kill('KILL', racer.pid)
-    rescue Exception => e
-        $stderr.puts e.message
-        $stderr.puts e.backtrace.inspect
-        failure = :error
-    end
+        average_score += total_score/n_runs
 
-    racer.close
-
-    score = reached_goal ? turns/track.target.to_f : 2
-    total_score += score
-
-    if verbose
+        puts '-'*85
+        puts 'TOTAL SCORE: % 20.5f' % total_score
         puts
-        puts 'Result:'
     end
 
-    print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [track_num, track.size.x, track.size.y, track.target, score]
-    if reached_goal
-        puts "Racer reached goal at #{position.pretty} in #{turns} turns."
-    else
-        case failure
-        when :error
-            puts "Racer produced error."
-        when :out_of_bounds
-            puts "Racer went out of bounds at position #{position.pretty}."
-        when :hit_wall
-            puts "Racer hit a wall at position #{position.pretty}."
-        when :timed_out
-            puts "Racer timed out after #{turns} turns."
-        when :exceeded_target
-            puts "Racer did not reach the goal within #{track.target} turns."
-        else
-            puts "Racer stopped before reaching goal."
-        end
-    end
+    results[author] = average_score
 end
 
-puts '-'*85
-puts 'TOTAL SCORE: % 20.5f' % total_score
-puts
+if racers.length > 1
+    puts '          Score Board'
+    puts '  ============================'
+    puts
+    puts '   User                 Score'
+    puts '  ----------------------------'
+    results.each { |k,v| puts '  %-18s %9.5f' % [k, v] }
+    puts
+end
