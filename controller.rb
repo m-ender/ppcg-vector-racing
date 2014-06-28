@@ -29,6 +29,7 @@ if ARGV.length > 0
     # Pretend we've read this from commands.txt as the only command
     racers = [ARGV]
     racers[0].unshift '1'
+    racers[0].unshift(silent ? '1' : '0')
     racers[0].unshift ''
 else
     racers = File.open('submissions/commands.txt').read.split("\n").map(&:split)
@@ -43,6 +44,7 @@ racers.each do |racer|
     average_score = 0
 
     author = racer.shift
+    silent = (racer.shift == '1')
     n_runs = racer.shift.to_i
     racer_command = racer
 
@@ -54,7 +56,7 @@ racers.each do |racer|
     n_runs.times do
         total_score = 0
 
-        puts ' No.    Size     Target   Score     Details'
+        puts ' No.       Size     Target   Score     Details'
         puts '-'*85
 
         selected_tracks.each do |idx|
@@ -166,7 +168,7 @@ racers.each do |racer|
                 puts 'Result:'
             end
 
-            print "% 3d   %3d x %-3d   % 5d   %7.5f   " % [idx, track.size.x, track.size.y, track.target, score]
+            print "% 3d   %6d x %-3d   % 5d   %7.5f   " % [idx, track.size.x, track.size.y, track.target, score]
             if reached_goal
                 puts "Racer reached goal at #{position.pretty} in #{turns} turns."
             else
@@ -190,7 +192,7 @@ racers.each do |racer|
         average_score += total_score/n_runs
 
         puts '-'*85
-        puts 'TOTAL SCORE: % 20.5f' % total_score
+        puts 'TOTAL SCORE: % 23.5f' % total_score
         puts
     end
 
