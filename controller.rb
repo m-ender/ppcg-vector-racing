@@ -21,7 +21,6 @@ OptionParser.new do |opts|
     opts.on("-s", "Silent") { silent = true }
     opts.on("-t TRACKS", "Select tracks") { |t| selected_tracks = eval("[#{t}]").map{|el|el.respond_to?(:to_a) ? el.to_a : el}.flatten }
 end.parse!
-p ARGV
 
 benchmark_file = ARGV.shift
 
@@ -44,6 +43,7 @@ racers.each do |racer|
     average_score = 0
 
     author = racer.shift
+    next if author[0] == '#'
     silent = (racer.shift == '1')
     n_runs = racer.shift.to_i
     racer_command = racer
