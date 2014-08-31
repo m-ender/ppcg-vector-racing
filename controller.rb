@@ -132,7 +132,10 @@ racers.each do |racer|
                            failure != :none ||
                            racer.closed?
                             if silent
-                                Process.kill('KILL', racer.pid)
+                                begin # ;!;
+                                    Process.kill('KILL', racer.pid)
+                                rescue Exception => e
+                                end
                             else
                                 racer.puts
                                 racer.flush
